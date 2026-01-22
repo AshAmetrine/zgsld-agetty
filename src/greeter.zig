@@ -58,7 +58,7 @@ pub const Greeter = struct {
 
 
         if (res.args.help != 0) {
-            try clap.helpToFile(.stderr(), clap.Help, params[0 .. params.len - 2], .{});
+            try clap.helpToFile(.stderr(), clap.Help, params[0 .. params.len - 1], .{});
             std.process.exit(0);
         }
         if (res.args.version != 0) {
