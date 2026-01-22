@@ -36,7 +36,7 @@ pub const Greeter = struct {
         return "login";
     }
 
-    pub fn handleInitialArgs(allocator: std.mem.Allocator) !bool {
+    pub fn handleInitialArgs(allocator: std.mem.Allocator) !void {
         var stderr_buf: [1024]u8 = undefined;
         var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
         const stderr = &stderr_writer.interface;
@@ -52,25 +52,22 @@ pub const Greeter = struct {
         var diag = clap.Diagnostic{};
         var res = clap.parse(clap.Help, &params, clap.parsers.default, .{ .diagnostic = &diag, .allocator = allocator }) catch |err| {
             diag.reportToFile(.stderr(), err) catch {};
-            return true;
+            return err;
         };
         defer res.deinit();
 
 
         if (res.args.help != 0) {
             try clap.helpToFile(.stderr(), clap.Help, params[0 .. params.len - 2], .{});
-            return true;
+            std.process.exit(0);
         }
         if (res.args.version != 0) {
             try stderr.writeAll("Basic Greeter version " ++ build_options.version ++ "\n");
             try stderr.flush();
-            return true;
+            std.process.exit(0);
         }
 
-        // Other args can be verified to be correct
-
-        // None of the args stop further execution
-        return false;
+        // Other args can be verified to be correct for when the greeter runs
     }
 
     pub fn run(self: *Greeter) !void {
