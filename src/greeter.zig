@@ -41,11 +41,10 @@ pub const Greeter = struct {
         var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
         const stderr = &stderr_writer.interface;
 
-        const paramStr = std.fmt.comptimePrint(
+        const paramStr =
             \\-h, --help                Shows all commands.
             \\-v, --version             Shows the version of basic-greeter.
-            \\--sock-fd <{s}>           Used internally by basic-greeter when starting a session.
-        , .{ @typeName(std.posix.fd_t) });
+        ;
 
         const params = comptime clap.parseParamsComptime(paramStr);
 
@@ -58,7 +57,7 @@ pub const Greeter = struct {
 
 
         if (res.args.help != 0) {
-            try clap.helpToFile(.stderr(), clap.Help, params[0 .. params.len - 1], .{});
+            try clap.helpToFile(.stderr(), clap.Help, &params, .{});
             std.process.exit(0);
         }
         if (res.args.version != 0) {
@@ -71,14 +70,34 @@ pub const Greeter = struct {
     }
 
     pub fn run(self: *Greeter) !void {
-        // Greeeter main loop
+        // Greeter main loop
         var authenticated = false;
         while (!authenticated) {
             authenticated = try self.tryAuth();
             if (!authenticated) std.debug.print("Auth Failed\n",.{});
         }
 
-        std.debug.print("Auth Succeeded\n",.{});
+        std.debug.print("\nAuth Succeeded\n",.{});
+
+        std.debug.print("Sending Session Env Vars\n",.{});
+
+        try self.ipc_conn.writeEvent(&.{
+            .set_session_env = .{ 
+                .key = "XDG_SESSION_TYPE", 
+                .value = "tty", 
+            },
+        });
+
+        std.debug.print("Sending start_session event\n",.{});
+
+        try self.ipc_conn.writeEvent(&.{ 
+            .start_session = .{ 
+                .Command = .{ .argv = "/bin/sh\x00" }
+            }
+        });
+
+        try self.ipc_conn.flush();
+        std.debug.print("Sent start_session Event\n",.{});
     }
 
     fn tryAuth(self: *Greeter) !bool {
