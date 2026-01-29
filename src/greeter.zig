@@ -9,6 +9,11 @@ pub const Greeter = struct {
     ipc_conn: *zgipc.Ipc,
     termios: std.posix.termios,
 
+    ipc_rbuf: [zgipc.IPC_IO_BUF_SIZE]u8 = undefined,
+    ipc_wbuf: [zgipc.IPC_IO_BUF_SIZE]u8 = undefined,
+    ipc_reader: std.fs.File.Reader = undefined,
+    ipc_writer: std.fs.File.Writer = undefined,
+
     stderr_buf: [1024]u8 = undefined,
     stdin_buf: [1024]u8 = undefined,
     stderr_writer: std.fs.File.Writer = undefined,
@@ -21,6 +26,9 @@ pub const Greeter = struct {
             .ipc_conn = ipc_conn,
             .termios = termios,
         };
+
+        greeter.ipc_reader = ipc_conn.reader(&greeter.ipc_rbuf);
+        greeter.ipc_writer = ipc_conn.writer(&greeter.ipc_wbuf);
 
         greeter.stderr_writer = std.fs.File.stderr().writer(&greeter.stderr_buf);
         greeter.stdin_reader = std.fs.File.stdin().reader(&greeter.stdin_buf);
@@ -70,6 +78,7 @@ pub const Greeter = struct {
     }
 
     pub fn run(self: *Greeter) !void {
+        const ipc_writer = &self.ipc_writer.interface;
         // Greeter main loop
         var authenticated = false;
         while (!authenticated) {
@@ -79,25 +88,27 @@ pub const Greeter = struct {
 
         std.debug.print("\nAuth Succeeded\n",.{});
 
-        try self.ipc_conn.writeEvent(&.{
+        try self.ipc_conn.writeEvent(ipc_writer, &.{
             .set_session_env = .{ 
                 .key = "XDG_SESSION_TYPE", 
                 .value = "tty", 
             },
         });
 
-        try self.ipc_conn.writeEvent(&.{ 
+        try self.ipc_conn.writeEvent(ipc_writer, &.{ 
             .start_session = .{ 
                 .Command = .{ .argv = "/bin/sh\x00" }
             }
         });
 
-        try self.ipc_conn.flush();
+        try ipc_writer.flush();
     }
 
     fn tryAuth(self: *Greeter) !bool {
         const stderr = &self.stderr_writer.interface;
         const stdin = &self.stdin_reader.interface;
+        const ipc_reader = &self.ipc_reader.interface;
+        const ipc_writer = &self.ipc_writer.interface;
 
         try stderr.print("\nUsername: ",.{});
         try stderr.flush();
@@ -111,8 +122,8 @@ pub const Greeter = struct {
             },
         };
 
-        try self.ipc_conn.writeEvent(&start_auth_event);
-        try self.ipc_conn.flush();
+        try self.ipc_conn.writeEvent(ipc_writer, &start_auth_event);
+        try ipc_writer.flush();
 
         defer {
             if (!self.termios.lflag.ECHO) {
@@ -123,7 +134,7 @@ pub const Greeter = struct {
 
         var event_buf: [zgipc.GREETER_BUF_SIZE]u8 = undefined;
         while (true) {
-            const event = try self.ipc_conn.readEvent(event_buf[0..]);
+            const event = try self.ipc_conn.readEvent(ipc_reader, event_buf[0..]);
             switch (event) {
                 .pam_message => |info| {
                     const prefix = if (info.is_error) "error: " else "";
@@ -141,8 +152,8 @@ pub const Greeter = struct {
                     const user_input = try stdin.takeDelimiter('\n');
                     defer std.crypto.secureZero(u8, user_input.?);
                     const resp_event = zgipc.IpcEvent{ .pam_response = user_input.? };
-                    try self.ipc_conn.writeEvent(&resp_event);
-                    try self.ipc_conn.flush();
+                    try self.ipc_conn.writeEvent(ipc_writer, &resp_event);
+                    try ipc_writer.flush();
                 },
                 .pam_auth_result => |result| return result.ok,
                 else => unreachable,
