@@ -79,16 +79,12 @@ pub const Greeter = struct {
 
         std.debug.print("\nAuth Succeeded\n",.{});
 
-        std.debug.print("Sending Session Env Vars\n",.{});
-
         try self.ipc_conn.writeEvent(&.{
             .set_session_env = .{ 
                 .key = "XDG_SESSION_TYPE", 
                 .value = "tty", 
             },
         });
-
-        std.debug.print("Sending start_session event\n",.{});
 
         try self.ipc_conn.writeEvent(&.{ 
             .start_session = .{ 
@@ -97,7 +93,6 @@ pub const Greeter = struct {
         });
 
         try self.ipc_conn.flush();
-        std.debug.print("Sent start_session Event\n",.{});
     }
 
     fn tryAuth(self: *Greeter) !bool {
