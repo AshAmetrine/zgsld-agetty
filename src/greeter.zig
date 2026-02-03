@@ -14,9 +14,9 @@ pub const Greeter = struct {
     ipc_reader: std.fs.File.Reader = undefined,
     ipc_writer: std.fs.File.Writer = undefined,
 
-    stderr_buf: [1024]u8 = undefined,
+    stdout_buf: [1024]u8 = undefined,
     stdin_buf: [1024]u8 = undefined,
-    stderr_writer: std.fs.File.Writer = undefined,
+    stdout_writer: std.fs.File.Writer = undefined,
     stdin_reader: std.fs.File.Reader = undefined,
 
     pub fn init(allocator: std.mem.Allocator, ipc_conn: *zgipc.Ipc) !Greeter {
@@ -30,7 +30,7 @@ pub const Greeter = struct {
         greeter.ipc_reader = ipc_conn.reader(&greeter.ipc_rbuf);
         greeter.ipc_writer = ipc_conn.writer(&greeter.ipc_wbuf);
 
-        greeter.stderr_writer = std.fs.File.stderr().writer(&greeter.stderr_buf);
+        greeter.stdout_writer = std.fs.File.stdout().writer(&greeter.stdout_buf);
         greeter.stdin_reader = std.fs.File.stdin().reader(&greeter.stdin_buf);
 
         return greeter;
@@ -46,7 +46,7 @@ pub const Greeter = struct {
 
     pub fn handleInitialArgs(allocator: std.mem.Allocator) !void {
         var stderr_buf: [1024]u8 = undefined;
-        var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+        var stderr_writer = std.fs.File.stdout().writer(&stderr_buf);
         const stderr = &stderr_writer.interface;
 
         const paramStr =
@@ -105,13 +105,13 @@ pub const Greeter = struct {
     }
 
     fn tryAuth(self: *Greeter) !bool {
-        const stderr = &self.stderr_writer.interface;
+        const stdout = &self.stdout_writer.interface;
         const stdin = &self.stdin_reader.interface;
         const ipc_reader = &self.ipc_reader.interface;
         const ipc_writer = &self.ipc_writer.interface;
 
-        try stderr.print("\nUsername: ",.{});
-        try stderr.flush();
+        try stdout.print("\nUsername: ",.{});
+        try stdout.flush();
         const username_raw = (try stdin.takeDelimiter('\n')) orelse "";
         const username_z = try self.allocator.dupeZ(u8, username_raw);
         defer self.allocator.free(username_z);
@@ -138,8 +138,8 @@ pub const Greeter = struct {
             switch (event) {
                 .pam_message => |info| {
                     const prefix = if (info.is_error) "error: " else "";
-                    try stderr.print("{s}{s}\n", .{ prefix, info.message });
-                    try stderr.flush();
+                    try stdout.print("{s}{s}\n", .{ prefix, info.message });
+                    try stdout.flush();
                 },
                 .pam_request => |req| {
                     if (self.termios.lflag.ECHO != req.echo) {
@@ -147,8 +147,8 @@ pub const Greeter = struct {
                         try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, self.termios);
                     }
 
-                    try stderr.print("{s}", .{req.message});
-                    try stderr.flush();
+                    try stdout.print("{s}", .{req.message});
+                    try stdout.flush();
                     const user_input = try stdin.takeDelimiter('\n');
                     defer std.crypto.secureZero(u8, user_input.?);
                     const resp_event = zgipc.IpcEvent{ .pam_response = user_input.? };
