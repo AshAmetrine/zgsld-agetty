@@ -11,24 +11,26 @@ pub fn build(b: *std.Build) !void {
     const zgsld = b.dependency("zgsld", .{ .target = target, .optimize = optimize });
     const clap = b.dependency("clap", .{ .target = target, .optimize = optimize });
 
-    const version_str = try getVersionStr(b,"basic",basic_greeter_version);
+    const version_str = try getVersionStr(b, "basic", basic_greeter_version);
 
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", version_str);
+    build_options.addOption(bool, "standalone", standalone);
+    const build_options_mod = build_options.createModule();
 
     const basic_greeter = b.createModule(.{
         .root_source_file = b.path("src/greeter.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "build_options", .module = build_options.createModule() },
+            .{ .name = "build_options", .module = build_options_mod },
             .{ .name = "clap", .module = clap.module("clap") },
         },
     });
 
     const exe = blk: {
         if (standalone) {
-            break :blk zgsld_build.makeStandalone(b,.{
+            break :blk zgsld_build.makeStandalone(b, .{
                 .name = "basic-zgsl",
                 .root_module = basic_greeter,
                 .target = target,
@@ -42,7 +44,9 @@ pub fn build(b: *std.Build) !void {
                     .target = target,
                     .optimize = optimize,
                     .imports = &.{
-                        .{ .name = "zgipc", .module = zgsld.module("ipc") },
+                        .{ .name = "zgipc", .module = zgsld.module("zgipc") },
+                        .{ .name = "build_options", .module = build_options_mod },
+                        .{ .name = "clap", .module = clap.module("clap") },
                     },
                     .link_libc = true,
                 }),
