@@ -1,5 +1,4 @@
 const std = @import("std");
-const zgsld_build = @import("zgsld");
 
 const basic_greeter_version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 0 };
 
@@ -8,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const standalone = b.option(bool, "standalone", "Build standalone greeter + session manager") orelse false;
 
-    const zgsld = b.dependency("zgsld", .{ .target = target, .optimize = optimize });
+    const zgsld = b.dependency("zgsld", .{ .target = target, .optimize = optimize, .standalone = standalone });
     const clap = b.dependency("clap", .{ .target = target, .optimize = optimize });
 
     const version_str = try getVersionStr(b, "basic", basic_greeter_version);
@@ -18,41 +17,20 @@ pub fn build(b: *std.Build) !void {
     build_options.addOption(bool, "standalone", standalone);
     const build_options_mod = build_options.createModule();
 
-    const basic_greeter = b.createModule(.{
-        .root_source_file = b.path("src/greeter.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "build_options", .module = build_options_mod },
-            .{ .name = "clap", .module = clap.module("clap") },
-        },
+    const exe = b.addExecutable(.{
+        .name = if (standalone) "zgsld-basic" else "basic-greeter",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zgsld", .module = zgsld.module("zgsld") },
+                .{ .name = "build_options", .module = build_options_mod },
+                .{ .name = "clap", .module = clap.module("clap") },
+            },
+            .link_libc = true,
+        }),
     });
-
-    const exe = blk: {
-        if (standalone) {
-            break :blk zgsld_build.makeStandalone(b, .{
-                .name = "basic-zgsl",
-                .root_module = basic_greeter,
-                .target = target,
-                .optimize = optimize,
-            });
-        } else {
-            break :blk b.addExecutable(.{
-                .name = "basic-greeter",
-                .root_module = b.createModule(.{
-                    .root_source_file = b.path("src/main.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                    .imports = &.{
-                        .{ .name = "zgipc", .module = zgsld.module("zgipc") },
-                        .{ .name = "build_options", .module = build_options_mod },
-                        .{ .name = "clap", .module = clap.module("clap") },
-                    },
-                    .link_libc = true,
-                }),
-            });
-        }
-    };
 
     b.installArtifact(exe);
 
