@@ -1,3 +1,3 @@
-# Basic ZGSLD Greeter
+# zgsld-agetty
 
-A very basic zgsld greeter.
+A simple zgsld greeter inspired by agetty.

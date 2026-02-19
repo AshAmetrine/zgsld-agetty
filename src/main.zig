@@ -5,16 +5,23 @@ const Zgsld = zgsld_mod.Zgsld;
 const Greeter = @import("greeter.zig").Greeter;
 const clap = @import("clap");
 
+pub const std_options: std.Options = .{ .logFn = zgsld_mod.logFn };
+
+const log = std.log.scoped(.zgsld_agetty);
+
 pub fn main() !void {
     const allocator = std.heap.c_allocator;
+
     if (!build_options.standalone and std.posix.getenv("ZGSLD_SOCK") == null) {
         const argv = try std.process.argsAlloc(allocator);
         defer std.process.argsFree(allocator, argv);
         _ = try parseArgs(allocator, argv[1..]);
 
-        std.debug.print("Error: This greeter should be run by zgsld\n",.{});
+        log.err("This greeter should be run by zgsld",.{});
         return;
     }
+
+    zgsld_mod.initZgsldLog();
 
     const zgsld = Zgsld.init(allocator, .{
         .run = run,
@@ -28,9 +35,9 @@ fn run(ctx: zgsld_mod.GreeterContext) !void {
     const argv = try std.process.argsAlloc(ctx.allocator);
     defer std.process.argsFree(ctx.allocator, argv);
 
-    _ = try parseArgs(ctx.allocator, argv[1..]);
+    const config = try parseArgs(ctx.allocator, argv[1..]);
 
-    var greeter = try Greeter.init(ctx.allocator, ctx.ipc);
+    var greeter = try Greeter.init(ctx.allocator, ctx.ipc, config.session_cmd);
     defer greeter.deinit();
 
     try greeter.run();
@@ -52,21 +59,26 @@ const ParsedArgs = if (build_options.standalone) struct {
     vt: ?u8 = null,
     greeter_user: ?[]const u8 = null,
     service_name: ?[]const u8 = null,
-} else struct {};
+    session_cmd: []const u8,
+} else struct {
+    session_cmd: []const u8,
+};
 
 fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedArgs {
     const param_str = if (build_options.standalone) blk: {
         break :blk
             \\-h, --help                Shows all commands.
-            \\-v, --version             Shows the version of basic-greeter.
+            \\-v, --version             Shows the version of zgsld-agetty.
             \\--vt <u8>                 Sets the VT number
             \\--greeter-user <str>      User that runs the greeter
             \\--service-name <str>      PAM service name used by the worker
+            \\--cmd <str>               Session Command
         ;
     } else blk: {
         break :blk
             \\-h, --help                Shows all commands.
-            \\-v, --version             Shows the version of basic-greeter.
+            \\-v, --version             Shows the version of zgsld-agetty.
+            \\--cmd <str>               Session Command
         ;
     };
 
@@ -93,7 +105,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
         var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
         const stderr = &stderr_writer.interface;
 
-        try stderr.writeAll("Basic Greeter version " ++ build_options.version ++ "\n");
+        try stderr.writeAll("zgsld-agetty version " ++ build_options.version ++ "\n");
         try stderr.flush();
         std.process.exit(0);
     }
@@ -103,8 +115,11 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
             .vt = res.args.vt,
             .greeter_user = res.args.@"greeter-user",
             .service_name = res.args.@"service-name",
+            .session_cmd = res.args.cmd orelse return error.NullSessionCmd,
         };
     }
 
-    return .{};
+    return .{
+        .session_cmd = res.args.cmd orelse return error.NullSessionCmd,
+    };
 }

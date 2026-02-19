@@ -1,16 +1,21 @@
 const std = @import("std");
-
-const basic_greeter_version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 0 };
+const build_zon = @import("build.zig.zon");
 
 pub fn build(b: *std.Build) !void {
+    const sem_ver = try std.SemanticVersion.parse(build_zon.version);
+    const version_str = try getVersionStr(b, sem_ver);
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const standalone = b.option(bool, "standalone", "Build standalone greeter + session manager") orelse false;
 
-    const zgsld = b.dependency("zgsld", .{ .target = target, .optimize = optimize, .standalone = standalone });
+    const zgsld = b.dependency("zgsld", .{
+        .target = target,
+        .optimize = optimize,
+        .standalone = standalone,
+        .x11 = false,
+    });
     const clap = b.dependency("clap", .{ .target = target, .optimize = optimize });
-
-    const version_str = try getVersionStr(b, "basic", basic_greeter_version);
 
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", version_str);
@@ -18,7 +23,7 @@ pub fn build(b: *std.Build) !void {
     const build_options_mod = build_options.createModule();
 
     const exe = b.addExecutable(.{
-        .name = if (standalone) "zgsld-basic" else "basic-greeter",
+        .name = if (standalone) "zgsld-agetty" else "zgsld-agetty-greeter",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
@@ -44,9 +49,21 @@ pub fn build(b: *std.Build) !void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
+
+    const test_step = b.step("test", "Run unit tests");
+    const tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    const run_tests = b.addRunArtifact(tests);
+    test_step.dependOn(&run_tests.step);
 }
 
-fn getVersionStr(b: *std.Build, name: []const u8, version: std.SemanticVersion) ![]const u8 {
+fn getVersionStr(b: *std.Build, version: std.SemanticVersion) ![]const u8 {
     const version_str = b.fmt("{d}.{d}.{d}", .{ version.major, version.minor, version.patch });
 
     var status: u8 = undefined;
@@ -67,7 +84,7 @@ fn getVersionStr(b: *std.Build, name: []const u8, version: std.SemanticVersion) 
     switch (std.mem.count(u8, git_describe, "-")) {
         0 => {
             if (!std.mem.eql(u8, version_str, git_describe)) {
-                std.debug.print("{s} version '{s}' does not match git tag: '{s}'\n", .{ name, version_str, git_describe });
+                std.debug.print("version '{s}' does not match git tag: '{s}'\n", .{ version_str, git_describe });
                 std.process.exit(1);
             }
             return version_str;
@@ -81,7 +98,7 @@ fn getVersionStr(b: *std.Build, name: []const u8, version: std.SemanticVersion) 
 
             const ancestor_ver = try std.SemanticVersion.parse(tagged_ancestor);
             if (version.order(ancestor_ver) != .gt) {
-                std.debug.print("{s} version '{f}' must be greater than tagged ancestor '{f}'\n", .{ name, version, ancestor_ver });
+                std.debug.print("version '{f}' must be greater than tagged ancestor '{f}'\n", .{ version, ancestor_ver });
                 std.process.exit(1);
             }
 

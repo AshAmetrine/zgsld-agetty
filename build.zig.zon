@@ -1,7 +1,7 @@
 .{
-    .name = .basic_zgsld_greeter,
-    .version = "0.0.0",
-    .fingerprint = 0x613a7d74789d0ac1, // Changing this has security and trust implications.
+    .name = .zgsld_agetty,
+    .version = "0.1.0",
+    .fingerprint = 0x3f6292002f359dc6, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .zgsld = .{
