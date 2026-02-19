@@ -5,7 +5,6 @@ const c = @cImport({
     @cInclude("sys/utsname.h");
 });
 
-
 pub fn tryPrintIssue(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
     const issue_data = try readFileAlloc(allocator, "/etc/issue", 64 * 1024);
     defer if (issue_data) |buf| allocator.free(buf);

@@ -61,6 +61,10 @@ pub fn build(b: *std.Build) !void {
     });
     const run_tests = b.addRunArtifact(tests);
     test_step.dependOn(&run_tests.step);
+
+    const fmt_step = b.step("fmt", "Format source files");
+    const fmt_cmd = b.addFmt(.{ .paths = &.{ "build.zig", "build.zig.zon", "src" } });
+    fmt_step.dependOn(&fmt_cmd.step);
 }
 
 fn getVersionStr(b: *std.Build, version: std.SemanticVersion) ![]const u8 {

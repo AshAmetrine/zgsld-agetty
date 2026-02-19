@@ -17,7 +17,7 @@ pub fn main() !void {
         defer std.process.argsFree(allocator, argv);
         _ = try parseArgs(allocator, argv[1..]);
 
-        log.err("This greeter should be run by zgsld",.{});
+        log.err("This greeter should be run by zgsld", .{});
         return;
     }
 
@@ -66,19 +66,19 @@ const ParsedArgs = if (build_options.standalone) struct {
 
 fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedArgs {
     const param_str = if (build_options.standalone) blk: {
-        break :blk
-            \\-h, --help                Shows all commands.
-            \\-v, --version             Shows the version of zgsld-agetty.
-            \\--vt <u8>                 Sets the VT number
-            \\--greeter-user <str>      User that runs the greeter
-            \\--service-name <str>      PAM service name used by the worker
-            \\--cmd <str>               Session Command
+        break :blk 
+        \\-h, --help                Shows all commands.
+        \\-v, --version             Shows the version of zgsld-agetty.
+        \\--vt <u8>                 Sets the VT number
+        \\--greeter-user <str>      User that runs the greeter
+        \\--service-name <str>      PAM service name used by the worker
+        \\--cmd <str>               Session Command
         ;
     } else blk: {
-        break :blk
-            \\-h, --help                Shows all commands.
-            \\-v, --version             Shows the version of zgsld-agetty.
-            \\--cmd <str>               Session Command
+        break :blk 
+        \\-h, --help                Shows all commands.
+        \\-v, --version             Shows the version of zgsld-agetty.
+        \\--cmd <str>               Session Command
         ;
     };
 
