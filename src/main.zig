@@ -23,7 +23,7 @@ pub fn main() !void {
 
     zgsld_mod.initZgsldLog();
 
-    const zgsld = Zgsld.init(allocator, .{
+    const zgsld = Zgsld.init(allocator, &.{
         .run = run,
         .configure = configure,
     });

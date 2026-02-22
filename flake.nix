@@ -1,5 +1,5 @@
 {
-  description = "basic-zgsld-greeter flake";
+  description = "zgsld-agetty flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
@@ -14,7 +14,7 @@
         pkgs = import nixpkgs { inherit system; };
       in {
         default = pkgs.mkShell {
-          name = "basic-zgsld-greeter-devshell";
+          name = "zgsld-agetty-devshell";
           packages = with pkgs; [ zig zls linux-pam ];
         };
       });
