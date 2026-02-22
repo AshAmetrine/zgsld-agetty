@@ -44,15 +44,15 @@ fn run(ctx: zgsld_mod.GreeterContext) !void {
 }
 
 fn configure(ctx: zgsld_mod.ConfigureContext) !void {
+    if (!build_options.standalone) unreachable;
+
     const argv = try std.process.argsAlloc(ctx.allocator);
     defer std.process.argsFree(ctx.allocator, argv);
 
-    if (build_options.standalone) {
-        const parsed = try parseArgs(ctx.allocator, argv[1..]);
-        if (parsed.greeter_user) |user| try ctx.cfg.setGreeterUser(user);
-        if (parsed.service_name) |name| try ctx.cfg.setServiceName(name);
-        if (parsed.vt) |vt| ctx.cfg.setVt(vt);
-    }
+    const parsed = try parseArgs(ctx.allocator, argv[1..]);
+    if (parsed.greeter_user) |user| try ctx.cfg.setGreeterUser(user);
+    if (parsed.service_name) |name| try ctx.cfg.setServiceName(name);
+    if (parsed.vt) |vt| ctx.cfg.setVt(vt);
 }
 
 const ParsedArgs = if (build_options.standalone) struct {
