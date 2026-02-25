@@ -38,8 +38,6 @@ fn run(ctx: zgsld_mod.GreeterContext) !void {
     const config = try parseArgs(ctx.allocator, argv[1..]);
 
     var greeter = try Greeter.init(ctx.allocator, ctx.ipc, config.session_cmd);
-    defer greeter.deinit();
-
     try greeter.run();
 }
 
