@@ -31,7 +31,7 @@ pub fn main() !void {
     try zgsld.run();
 }
 
-fn run(ctx: zgsld_mod.GreeterContext) !void {
+fn run(ctx: Zgsld.GreeterContext) !void {
     const argv = try std.process.argsAlloc(ctx.allocator);
     defer std.process.argsFree(ctx.allocator, argv);
 
@@ -41,16 +41,25 @@ fn run(ctx: zgsld_mod.GreeterContext) !void {
     try greeter.run();
 }
 
-fn configure(ctx: zgsld_mod.ConfigureContext) !void {
+fn configure(ctx: Zgsld.ConfigureContext) !void {
     if (!build_options.standalone) unreachable;
 
     const argv = try std.process.argsAlloc(ctx.allocator);
     defer std.process.argsFree(ctx.allocator, argv);
 
     const parsed = try parseArgs(ctx.allocator, argv[1..]);
-    if (parsed.greeter_user) |user| try ctx.cfg.setGreeterUser(user);
-    if (parsed.service_name) |name| try ctx.cfg.setServiceName(name);
-    if (parsed.vt) |vt| ctx.cfg.setVt(vt);
+
+    const arena_allocator = ctx.arena_allocator;
+
+    if (parsed.greeter_user) |user| {
+        ctx.config.greeter_user = try arena_allocator.dupe(u8, user);
+    }
+    if (parsed.service_name) |name| {
+        ctx.config.service_name = try arena_allocator.dupe(u8, name);
+    }
+    if (parsed.vt) |vt| {
+        ctx.config.vt = vt;
+    }
 }
 
 const ParsedArgs = if (build_options.standalone) struct {
