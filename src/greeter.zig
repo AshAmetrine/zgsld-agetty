@@ -1,6 +1,6 @@
 const std = @import("std");
 const zgsld = @import("zgsld");
-const zgipc = zgsld.ipc;
+const Ipc = zgsld.Ipc;
 const issue = @import("issue.zig");
 
 const IoHandles = struct {
@@ -12,15 +12,15 @@ const IoHandles = struct {
 
 pub const Greeter = struct {
     allocator: std.mem.Allocator,
-    ipc_conn: *zgipc.Ipc,
+    ipc_conn: *Ipc.Connection,
     session_cmd: []const u8,
     termios: std.posix.termios,
-    ipc_rbuf: [zgipc.IPC_IO_BUF_SIZE]u8 = undefined,
-    ipc_wbuf: [zgipc.IPC_IO_BUF_SIZE]u8 = undefined,
+    ipc_rbuf: [Ipc.event_buf_size]u8 = undefined,
+    ipc_wbuf: [Ipc.event_buf_size]u8 = undefined,
     stderr_buf: [512]u8 = undefined,
     stdin_buf: [512]u8 = undefined,
 
-    pub fn init(allocator: std.mem.Allocator, ipc_conn: *zgipc.Ipc, session_cmd: []const u8) !Greeter {
+    pub fn init(allocator: std.mem.Allocator, ipc_conn: *Ipc.Connection, session_cmd: []const u8) !Greeter {
         return .{
             .allocator = allocator,
             .ipc_conn = ipc_conn,
@@ -72,7 +72,7 @@ pub const Greeter = struct {
 
         defer self.setEcho(true) catch {};
 
-        var event_buf: [zgipc.GREETER_BUF_SIZE]u8 = undefined;
+        var event_buf: [Ipc.event_buf_size]u8 = undefined;
         while (true) {
             const event = try self.ipc_conn.readEvent(io.ipc_reader, event_buf[0..]);
             switch (event) {
@@ -89,7 +89,7 @@ pub const Greeter = struct {
                     const user_input = try io.stdin.takeDelimiter('\n');
                     defer std.crypto.secureZero(u8, user_input.?);
 
-                    const resp_event = zgipc.IpcEvent{ .pam_response = user_input.? };
+                    const resp_event = Ipc.Event{ .pam_response = user_input.? };
                     try self.ipc_conn.writeEvent(io.ipc_writer, &resp_event);
                     try io.ipc_writer.flush();
                 },
