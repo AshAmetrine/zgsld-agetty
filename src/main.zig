@@ -17,8 +17,10 @@ pub fn main() !void {
         defer std.process.argsFree(allocator, argv);
         _ = try parseArgs(allocator, argv[1..]);
 
-        log.err("This greeter should be run by zgsld", .{});
-        return;
+        if (!build_options.preview) {
+            log.err("This greeter should be run by zgsld", .{});
+            return;
+        }
     }
 
     zgsld_mod.initZgsldLog();
@@ -28,7 +30,12 @@ pub fn main() !void {
         .configure = configure,
     });
 
-    try zgsld.run();
+
+    if (build_options.preview) {
+        try zgsld.runPreview(.{});
+    } else {
+        try zgsld.run();
+    }
 }
 
 fn run(ctx: Zgsld.GreeterContext) !void {

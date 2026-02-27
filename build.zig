@@ -8,6 +8,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const standalone = b.option(bool, "standalone", "Build standalone greeter + session manager") orelse false;
+    const preview = b.option(bool, "preview", "Preview build") orelse false;
 
     const zgsld = b.dependency("zgsld", .{
         .target = target,
@@ -20,6 +21,7 @@ pub fn build(b: *std.Build) !void {
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", version_str);
     build_options.addOption(bool, "standalone", standalone);
+    build_options.addOption(bool, "preview", preview);
     const build_options_mod = build_options.createModule();
 
     const exe = b.addExecutable(.{
