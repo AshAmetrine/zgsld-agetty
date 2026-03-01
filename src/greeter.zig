@@ -49,7 +49,7 @@ pub const Greeter = struct {
 
         try self.ipc_conn.writeEvent(io.ipc_writer, &.{
             .start_session = .{
-                .session_type = .Command,
+                .session_type = .command,
                 .command = .{ .session_cmd = self.session_cmd },
             },
         });
