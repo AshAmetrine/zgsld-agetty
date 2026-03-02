@@ -59,10 +59,10 @@ fn configure(ctx: Zgsld.ConfigureContext) !void {
     const arena_allocator = ctx.arena_allocator;
 
     if (parsed.greeter_user) |user| {
-        ctx.config.greeter_user = try arena_allocator.dupe(u8, user);
+        ctx.config.greeter.user = try arena_allocator.dupe(u8, user);
     }
     if (parsed.service_name) |name| {
-        ctx.config.service_name = try arena_allocator.dupe(u8, name);
+        ctx.config.session.service_name = try arena_allocator.dupe(u8, name);
     }
     if (parsed.vt) |vt| {
         ctx.config.vt = vt;
