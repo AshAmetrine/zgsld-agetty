@@ -64,6 +64,9 @@ fn configure(ctx: Zgsld.ConfigureContext) !void {
     if (parsed.service_name) |name| {
         ctx.config.session.service_name = try arena_allocator.dupe(u8, name);
     }
+    if (parsed.greeter_service_name) |name| {
+        ctx.config.greeter.service_name = try arena_allocator.dupe(u8, name);
+    }
     if (parsed.vt) |vt| {
         ctx.config.vt = vt;
     }
@@ -73,6 +76,7 @@ const ParsedArgs = if (build_options.standalone) struct {
     vt: ?u8 = null,
     greeter_user: ?[]const u8 = null,
     service_name: ?[]const u8 = null,
+    greeter_service_name: ?[]const u8 = null,
     session_cmd: []const u8,
 } else struct {
     session_cmd: []const u8,
@@ -86,6 +90,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
         \\--vt <u8>                 Sets the VT number
         \\--greeter-user <str>      User that runs the greeter
         \\--service-name <str>      PAM service name used by the worker
+        \\--greeter-service-name <str>  PAM service name used by the greeter session
         \\--cmd <str>               Session Command
         ;
     } else blk: {
@@ -129,6 +134,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
             .vt = res.args.vt,
             .greeter_user = res.args.@"greeter-user",
             .service_name = res.args.@"service-name",
+            .greeter_service_name = res.args.@"greeter-service-name",
             .session_cmd = res.args.cmd orelse return error.NullSessionCmd,
         };
     }
