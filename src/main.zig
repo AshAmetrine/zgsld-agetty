@@ -37,7 +37,10 @@ pub fn main() !void {
     });
 
     if (build_options.preview) {
-        try zgsld.runPreview(.{});
+        try zgsld.runPreview(.{ 
+            .authenticate_steps = &zgsld_mod.preview.password_auth_steps, 
+            .post_auth_steps = &zgsld_mod.preview.change_auth_token_steps,
+        });
     } else {
         try zgsld.run();
     }
@@ -77,6 +80,11 @@ fn configure(ctx: Zgsld.ConfigureContext) !void {
     if (parsed.greeter_service_name) |name| {
         ctx.config.greeter.service_name = try arena_allocator.dupe(u8, name);
     }
+    if (build_options.x11_support) {
+        if (parsed.x11_cmd) |cmd| {
+            ctx.config.x11.command = try arena_allocator.dupe(u8, cmd);
+        }
+    }
     if (parsed.vt) |vt| {
         ctx.config.vt = vt;
     }
@@ -87,6 +95,7 @@ const ParsedArgs = if (build_options.standalone) struct {
     greeter_user: ?[]const u8 = null,
     service_name: ?[]const u8 = null,
     greeter_service_name: ?[]const u8 = null,
+    x11_cmd: ?[]const u8 = null,
     session_type: XdgSessionType,
     session_cmd: []const u8,
 } else struct {
@@ -96,6 +105,20 @@ const ParsedArgs = if (build_options.standalone) struct {
 
 fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedArgs {
     const param_str = if (build_options.standalone) blk: {
+        if (build_options.x11_support) {
+            break :blk 
+            \\-h, --help                Shows all commands.
+            \\-v, --version             Shows the version of zgsld-agetty.
+            \\--vt <u8>                 Sets the VT number
+            \\--greeter-user <str>      User that runs the greeter
+            \\--service-name <str>      PAM service name used by the worker
+            \\--greeter-service-name <str>  PAM service name used by the greeter session
+            \\--x11-cmd <str>           X server command with args
+            \\--session-type <str>      XDG session type: x11, wayland, tty
+            \\--cmd <str>               Session Command
+            ;
+        }
+
         break :blk 
         \\-h, --help                Shows all commands.
         \\-v, --version             Shows the version of zgsld-agetty.
@@ -151,6 +174,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
             .greeter_user = res.args.@"greeter-user",
             .service_name = res.args.@"service-name",
             .greeter_service_name = res.args.@"greeter-service-name",
+            .x11_cmd = if (build_options.x11_support) res.args.@"x11-cmd" else null,
             .session_type = session_type,
             .session_cmd = res.args.cmd orelse return error.NullSessionCmd,
         };

@@ -54,11 +54,12 @@ pub const Greeter = struct {
             .ipc_writer = &ipc_writer.interface,
         };
 
+        // Clear the terminal
+        try io.stderr.writeAll("\x1b[2J\x1b[H");
+
         try issue.tryPrintIssue(self.allocator, io.stderr);
 
-        while (!(try self.tryAuth(io))) {
-            try io.stderr.print("\nLogin incorrect\n", .{});
-        }
+        while (!(try self.tryAuth(io))) {}
 
         try self.ipc_conn.writeEvent(io.ipc_writer, &.{
             .set_session_env = .{
@@ -79,6 +80,7 @@ pub const Greeter = struct {
         try io.stderr.print("Username: ", .{});
         try io.stderr.flush();
         const username_raw = (try io.stdin.takeDelimiter('\n')) orelse "";
+        if (username_raw.len == 0) return false;
         const username_z = try self.allocator.dupeZ(u8, username_raw);
         defer self.allocator.free(username_z);
 
@@ -97,7 +99,7 @@ pub const Greeter = struct {
             switch (event) {
                 .pam_message => |info| {
                     const prefix = if (info.is_error) "error: " else "";
-                    try io.stderr.print("{s}{s}\n", .{ prefix, info.message });
+                    try io.stderr.print("\n{s}{s}\n", .{ prefix, info.message });
                     try io.stderr.flush();
                 },
                 .pam_request => |req| {
@@ -112,7 +114,12 @@ pub const Greeter = struct {
                     try self.ipc_conn.writeEvent(io.ipc_writer, &resp_event);
                     try io.ipc_writer.flush();
                 },
-                .pam_auth_result => |result| return result.ok,
+                .pam_auth_result => |result| {
+                    if (!result.ok) {
+                        try io.stderr.print("\nLogin incorrect\n", .{});
+                    }
+                    return result.ok;
+                },
                 else => unreachable,
             }
         }

@@ -9,12 +9,15 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const standalone = b.option(bool, "standalone", "Build standalone greeter + session manager") orelse false;
     const preview = b.option(bool, "preview", "Preview build") orelse false;
+    const x11_support = b.option(bool, "x11", "Enable X11 session support") orelse false;
+    const x11_cmd = b.option([]const u8, "x11_cmd", "X server command (default: /bin/X)") orelse "/bin/X";
 
     const zgsld = b.dependency("zgsld", .{
         .target = target,
         .optimize = optimize,
         .standalone = standalone,
-        .x11 = false,
+        .x11 = x11_support,
+        .x11_cmd = x11_cmd,
     });
     const clap = b.dependency("clap", .{ .target = target, .optimize = optimize });
 
@@ -22,6 +25,9 @@ pub fn build(b: *std.Build) !void {
     build_options.addOption([]const u8, "version", version_str);
     build_options.addOption(bool, "standalone", standalone);
     build_options.addOption(bool, "preview", preview);
+    if (standalone) {
+        build_options.addOption(bool, "x11_support", x11_support);
+    }
     const build_options_mod = build_options.createModule();
 
     const exe = b.addExecutable(.{
