@@ -1,4 +1,5 @@
 const std = @import("std");
+const main = @import("main.zig");
 const zgsld = @import("zgsld");
 const Ipc = zgsld.Ipc;
 const issue = @import("issue.zig");
@@ -14,17 +15,29 @@ pub const Greeter = struct {
     allocator: std.mem.Allocator,
     ipc_conn: *Ipc.Connection,
     session_cmd: []const u8,
+    xdg_session_type: main.XdgSessionType,
+    launch_session_type: Ipc.SessionType,
     termios: std.posix.termios,
     ipc_rbuf: [Ipc.event_buf_size]u8 = undefined,
     ipc_wbuf: [Ipc.event_buf_size]u8 = undefined,
     stderr_buf: [512]u8 = undefined,
     stdin_buf: [512]u8 = undefined,
 
-    pub fn init(allocator: std.mem.Allocator, ipc_conn: *Ipc.Connection, session_cmd: []const u8) !Greeter {
+    pub fn init(
+        allocator: std.mem.Allocator,
+        ipc_conn: *Ipc.Connection,
+        session_cmd: []const u8,
+        xdg_session_type: main.XdgSessionType,
+    ) !Greeter {
         return .{
             .allocator = allocator,
             .ipc_conn = ipc_conn,
             .session_cmd = session_cmd,
+            .xdg_session_type = xdg_session_type,
+            .launch_session_type = switch (xdg_session_type) {
+                .x11 => .x11,
+                else => .command,
+            },
             .termios = try std.posix.tcgetattr(std.posix.STDIN_FILENO),
         };
     }
@@ -48,8 +61,14 @@ pub const Greeter = struct {
         }
 
         try self.ipc_conn.writeEvent(io.ipc_writer, &.{
+            .set_session_env = .{
+                .key = "XDG_SESSION_TYPE",
+                .value = @tagName(self.xdg_session_type),
+            },
+        });
+        try self.ipc_conn.writeEvent(io.ipc_writer, &.{
             .start_session = .{
-                .session_type = .command,
+                .session_type = self.launch_session_type,
                 .command = .{ .session_cmd = self.session_cmd },
             },
         });

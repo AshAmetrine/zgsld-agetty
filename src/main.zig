@@ -2,12 +2,18 @@ const std = @import("std");
 const build_options = @import("build_options");
 const zgsld_mod = @import("zgsld");
 const Zgsld = zgsld_mod.Zgsld;
-const Greeter = @import("greeter.zig").Greeter;
+const greeter_mod = @import("greeter.zig");
+const Greeter = greeter_mod.Greeter;
 const clap = @import("clap");
 
 pub const std_options: std.Options = .{ .logFn = zgsld_mod.logFn };
 
 const log = std.log.scoped(.zgsld_agetty);
+pub const XdgSessionType = enum {
+    x11,
+    wayland,
+    tty,
+};
 
 pub fn main() !void {
     const allocator = std.heap.c_allocator;
@@ -30,7 +36,6 @@ pub fn main() !void {
         .configure = configure,
     });
 
-
     if (build_options.preview) {
         try zgsld.runPreview(.{});
     } else {
@@ -44,7 +49,12 @@ fn run(ctx: Zgsld.GreeterContext) !void {
 
     const config = try parseArgs(ctx.allocator, argv[1..]);
 
-    var greeter = try Greeter.init(ctx.allocator, ctx.ipc, config.session_cmd);
+    var greeter = try Greeter.init(
+        ctx.allocator,
+        ctx.ipc,
+        config.session_cmd,
+        config.session_type,
+    );
     try greeter.run();
 }
 
@@ -77,8 +87,10 @@ const ParsedArgs = if (build_options.standalone) struct {
     greeter_user: ?[]const u8 = null,
     service_name: ?[]const u8 = null,
     greeter_service_name: ?[]const u8 = null,
+    session_type: XdgSessionType,
     session_cmd: []const u8,
 } else struct {
+    session_type: XdgSessionType,
     session_cmd: []const u8,
 };
 
@@ -91,12 +103,14 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
         \\--greeter-user <str>      User that runs the greeter
         \\--service-name <str>      PAM service name used by the worker
         \\--greeter-service-name <str>  PAM service name used by the greeter session
+        \\--session-type <str>      XDG session type: x11, wayland, tty
         \\--cmd <str>               Session Command
         ;
     } else blk: {
         break :blk 
         \\-h, --help                Shows all commands.
         \\-v, --version             Shows the version of zgsld-agetty.
+        \\--session-type <str>      XDG session type: x11, wayland, tty
         \\--cmd <str>               Session Command
         ;
     };
@@ -129,17 +143,26 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
         std.process.exit(0);
     }
 
+    const session_type = try parseXdgSessionType(res.args.@"session-type");
+
     if (build_options.standalone) {
         return .{
             .vt = res.args.vt,
             .greeter_user = res.args.@"greeter-user",
             .service_name = res.args.@"service-name",
             .greeter_service_name = res.args.@"greeter-service-name",
+            .session_type = session_type,
             .session_cmd = res.args.cmd orelse return error.NullSessionCmd,
         };
     }
 
     return .{
+        .session_type = session_type,
         .session_cmd = res.args.cmd orelse return error.NullSessionCmd,
     };
+}
+
+fn parseXdgSessionType(raw: ?[]const u8) !XdgSessionType {
+    const value = raw orelse return error.NullSessionType;
+    return std.meta.stringToEnum(XdgSessionType, value) orelse error.InvalidSessionType;
 }
