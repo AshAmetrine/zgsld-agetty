@@ -91,7 +91,7 @@ fn configure(ctx: Zgsld.ConfigureContext) !void {
 }
 
 const ParsedArgs = if (build_options.standalone) struct {
-    vt: ?u8 = null,
+    vt: ?Zgsld.Config.Vt = null,
     greeter_user: ?[]const u8 = null,
     service_name: ?[]const u8 = null,
     greeter_service_name: ?[]const u8 = null,
@@ -109,7 +109,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
             break :blk 
             \\-h, --help                Shows all commands.
             \\-v, --version             Shows the version of zgsld-agetty.
-            \\--vt <u8>                 Sets the VT number
+            \\--vt <str>                Sets the VT to a number, `current` or `unmanaged`
             \\--greeter-user <str>      User that runs the greeter
             \\--service-name <str>      PAM service name used by the worker
             \\--greeter-service-name <str>  PAM service name used by the greeter session
@@ -122,7 +122,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
         break :blk 
         \\-h, --help                Shows all commands.
         \\-v, --version             Shows the version of zgsld-agetty.
-        \\--vt <u8>                 Sets the VT number
+        \\--vt <str>                Sets the VT to a number, `current` or `unmanaged`
         \\--greeter-user <str>      User that runs the greeter
         \\--service-name <str>      PAM service name used by the worker
         \\--greeter-service-name <str>  PAM service name used by the greeter session
@@ -170,7 +170,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
 
     if (build_options.standalone) {
         return .{
-            .vt = res.args.vt,
+            .vt = try Zgsld.Config.Vt.parse(res.args.vt),
             .greeter_user = res.args.@"greeter-user",
             .service_name = res.args.@"service-name",
             .greeter_service_name = res.args.@"greeter-service-name",
