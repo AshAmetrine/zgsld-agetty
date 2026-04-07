@@ -5,6 +5,8 @@ const c = @cImport({
     @cInclude("sys/utsname.h");
 });
 
+extern "c" fn ttyname_r(fd: std.posix.fd_t, buf: [*]u8, buflen: usize) c_int;
+
 pub fn tryPrintIssue(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
     const issue_data = try readFileAlloc(allocator, "/etc/issue", 64 * 1024);
     defer if (issue_data) |buf| allocator.free(buf);
@@ -17,8 +19,10 @@ pub fn tryPrintIssue(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void
 
     var date_buf: [64]u8 = undefined;
     var time_buf: [32]u8 = undefined;
+    var tty_buf: [32]u8 = undefined;
     const date = formatTime(&date_buf, "%a %b %e %Y") catch "";
     const time = formatTime(&time_buf, "%H:%M:%S") catch "";
+    const tty = resolveTtyName(&tty_buf) catch "tty";
 
     const os_release = try readOsRelease(allocator);
     defer if (os_release) |buf| allocator.free(buf);
@@ -29,7 +33,7 @@ pub fn tryPrintIssue(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void
         .release = std.mem.sliceTo(&uts.release, 0),
         .version = std.mem.sliceTo(&uts.version, 0),
         .machine = std.mem.sliceTo(&uts.machine, 0),
-        .tty = "tty",
+        .tty = tty,
         .date = date,
         .time = time,
         .os_release = os_release,
@@ -213,6 +217,18 @@ fn formatTime(buf: []u8, fmt: [:0]const u8) FormatTimeError![]const u8 {
     const n = c.strftime(buf.ptr, buf.len, fmt, &tm);
     if (n == 0) return error.BufferTooSmall;
     return buf[0..n];
+}
+
+fn resolveTtyName(buf: []u8) ![]const u8 {
+    const rc = ttyname_r(std.posix.STDIN_FILENO, buf.ptr, buf.len);
+    if (rc != 0) return std.posix.unexpectedErrno(@enumFromInt(rc));
+
+    const tty_path = std.mem.sliceTo(buf, 0);
+    var offset: usize = 0;
+    if (std.mem.startsWith(u8, tty_path, "/dev/")) {
+        offset = "/dev/".len;
+    }
+    return buf[offset..tty_path.len :0];
 }
 
 test "expandIssue basics" {
