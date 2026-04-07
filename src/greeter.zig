@@ -54,12 +54,15 @@ pub const Greeter = struct {
             .ipc_writer = &ipc_writer.interface,
         };
 
+        var hostname_buf: [std.posix.HOST_NAME_MAX]u8 = undefined;
+        const hostname = try std.posix.gethostname(&hostname_buf);
+
         // Clear the terminal
         try io.stderr.writeAll("\x1b[2J\x1b[H");
 
         try issue.tryPrintIssue(self.allocator, io.stderr);
 
-        while (!(try self.tryAuth(io))) {}
+        while (!(try self.tryAuth(io, hostname))) {}
 
         try self.ipc_conn.writeEvent(io.ipc_writer, &.{
             .set_session_env = .{
@@ -76,8 +79,8 @@ pub const Greeter = struct {
         try io.ipc_writer.flush();
     }
 
-    fn tryAuth(self: *Greeter, io: IoHandles) !bool {
-        try io.stderr.print("Username: ", .{});
+    fn tryAuth(self: *Greeter, io: IoHandles, hostname: []const u8) !bool {
+        try io.stderr.print("{s} login: ", .{hostname});
         try io.stderr.flush();
         const username_raw = (try io.stdin.takeDelimiter('\n')) orelse "";
         if (username_raw.len == 0) return false;
