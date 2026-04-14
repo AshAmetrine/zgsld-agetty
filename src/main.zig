@@ -1,6 +1,7 @@
 const std = @import("std");
 const build_options = @import("build_options");
 const zgsld_mod = @import("zgsld");
+const ZgsldConfig = zgsld_mod.Config;
 const Zgsld = zgsld_mod.Zgsld;
 const greeter_mod = @import("greeter.zig");
 const Greeter = greeter_mod.Greeter;
@@ -91,7 +92,7 @@ fn configure(ctx: Zgsld.ConfigureContext) !void {
 }
 
 const ParsedArgs = if (build_options.standalone) struct {
-    vt: ?Zgsld.Config.Vt = null,
+    vt: ?ZgsldConfig.Vt = null,
     greeter_user: ?[]const u8 = null,
     service_name: ?[]const u8 = null,
     greeter_service_name: ?[]const u8 = null,
@@ -170,7 +171,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
 
     if (build_options.standalone) {
         return .{
-            .vt = try Zgsld.Config.Vt.parse(res.args.vt),
+            .vt = try ZgsldConfig.Vt.parse(res.args.vt),
             .greeter_user = res.args.@"greeter-user",
             .service_name = res.args.@"service-name",
             .greeter_service_name = res.args.@"greeter-service-name",
