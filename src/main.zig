@@ -5,24 +5,18 @@ const ZgsldConfig = zgsld_mod.Config;
 const Zgsld = zgsld_mod.Zgsld;
 const greeter_mod = @import("greeter.zig");
 const Greeter = greeter_mod.Greeter;
+const XdgSessionType = greeter_mod.XdgSessionType;
 const clap = @import("clap");
 
 pub const std_options: std.Options = .{ .logFn = zgsld_mod.logFn };
 
 const log = std.log.scoped(.zgsld_agetty);
-pub const XdgSessionType = enum {
-    x11,
-    wayland,
-    tty,
-};
 
-pub fn main() !void {
-    const allocator = std.heap.c_allocator;
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
-    if (!build_options.standalone and std.posix.getenv("ZGSLD_SOCK") == null) {
-        const argv = try std.process.argsAlloc(allocator);
-        defer std.process.argsFree(allocator, argv);
-        _ = try parseArgs(allocator, argv[1..]);
+    if (!build_options.standalone and !init.environ_map.contains("ZGSLD_SOCK")) {
+        _ = try parseArgs(allocator, init.io, init.minimal.args);
 
         if (!build_options.preview) {
             log.err("This greeter should be run by zgsld", .{});
@@ -30,16 +24,19 @@ pub fn main() !void {
         }
     }
 
-    zgsld_mod.initZgsldLog();
+    zgsld_mod.initZgsldLog(init.environ_map);
 
-    const zgsld = Zgsld.init(allocator, &.{
-        .run = run,
-        .configure = configure,
+    const zgsld = Zgsld.init(.{
+        .process = .fromInit(init),
+        .vtable = &.{
+            .run = run,
+            .configure = configure,
+        },
     });
 
     if (build_options.preview) {
-        try zgsld.runPreview(.{ 
-            .authenticate_steps = &zgsld_mod.preview.password_auth_steps, 
+        try zgsld.runPreview(.{
+            .authenticate_steps = &zgsld_mod.preview.password_auth_steps,
             .post_auth_steps = &zgsld_mod.preview.change_auth_token_steps,
         });
     } else {
@@ -48,27 +45,21 @@ pub fn main() !void {
 }
 
 fn run(ctx: Zgsld.GreeterContext) !void {
-    const argv = try std.process.argsAlloc(ctx.allocator);
-    defer std.process.argsFree(ctx.allocator, argv);
-
-    const config = try parseArgs(ctx.allocator, argv[1..]);
+    const config = try parseArgs(ctx.process.gpa, ctx.process.io, ctx.process.args);
 
     var greeter = try Greeter.init(
-        ctx.allocator,
+        ctx.process.gpa,
         ctx.ipc,
         config.session_cmd,
         config.session_type,
     );
-    try greeter.run();
+    try greeter.run(ctx.process.io);
 }
 
 fn configure(ctx: Zgsld.ConfigureContext) !void {
     if (!build_options.standalone) unreachable;
 
-    const argv = try std.process.argsAlloc(ctx.allocator);
-    defer std.process.argsFree(ctx.allocator, argv);
-
-    const parsed = try parseArgs(ctx.allocator, argv[1..]);
+    const parsed = try parseArgs(ctx.process.gpa, ctx.process.io, ctx.process.args);
 
     const arena_allocator = ctx.arena_allocator;
 
@@ -104,10 +95,10 @@ const ParsedArgs = if (build_options.standalone) struct {
     session_cmd: []const u8,
 };
 
-fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedArgs {
+fn parseArgs(allocator: std.mem.Allocator, io: std.Io, args: std.process.Args) !ParsedArgs {
     const param_str = if (build_options.standalone) blk: {
         if (build_options.x11_support) {
-            break :blk 
+            break :blk
             \\-h, --help                Shows all commands.
             \\-v, --version             Shows the version of zgsld-agetty.
             \\--vt <str>                Sets the VT to a number, `current` or `unmanaged`
@@ -120,7 +111,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
             ;
         }
 
-        break :blk 
+        break :blk
         \\-h, --help                Shows all commands.
         \\-v, --version             Shows the version of zgsld-agetty.
         \\--vt <str>                Sets the VT to a number, `current` or `unmanaged`
@@ -131,7 +122,7 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
         \\--cmd <str>               Session Command
         ;
     } else blk: {
-        break :blk 
+        break :blk
         \\-h, --help                Shows all commands.
         \\-v, --version             Shows the version of zgsld-agetty.
         \\--session-type <str>      XDG session type: x11, wayland, tty
@@ -140,26 +131,24 @@ fn parseArgs(allocator: std.mem.Allocator, argv: []const [:0]const u8) !ParsedAr
     };
 
     const params = comptime clap.parseParamsComptime(param_str);
-
     var diag = clap.Diagnostic{};
-    var iter = clap.args.SliceIterator{ .args = argv };
-    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, &iter, .{
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, args, .{
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        diag.reportToFile(.stderr(), err) catch {};
+        diag.reportToFile(io, .stderr(), err) catch {};
         return err;
     };
     defer res.deinit();
 
     if (res.args.help != 0) {
-        try clap.helpToFile(.stderr(), clap.Help, &params, .{});
+        try clap.helpToFile(io, .stderr(), clap.Help, &params, .{});
         std.process.exit(0);
     }
 
     if (res.args.version != 0) {
         var stderr_buf: [1024]u8 = undefined;
-        var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+        var stderr_writer = std.Io.File.stderr().writer(io, &stderr_buf);
         const stderr = &stderr_writer.interface;
 
         try stderr.writeAll("zgsld-agetty version " ++ build_options.version ++ "\n");

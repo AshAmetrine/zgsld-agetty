@@ -7,8 +7,8 @@ const c = @cImport({
 
 extern "c" fn ttyname_r(fd: std.posix.fd_t, buf: [*]u8, buflen: usize) c_int;
 
-pub fn tryPrintIssue(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
-    const issue_data = try readFileAlloc(allocator, "/etc/issue", 64 * 1024);
+pub fn tryPrintIssue(allocator: std.mem.Allocator, io: std.Io, writer: *std.Io.Writer) !void {
+    const issue_data = try readFileAlloc(allocator, io, "/etc/issue", 64 * 1024);
     defer if (issue_data) |buf| allocator.free(buf);
 
     if (issue_data == null) return;
@@ -24,7 +24,7 @@ pub fn tryPrintIssue(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void
     const time = formatTime(&time_buf, "%H:%M:%S") catch "";
     const tty = resolveTtyName(&tty_buf) catch "tty";
 
-    const os_release = try readOsRelease(allocator);
+    const os_release = try readOsRelease(allocator, io);
     defer if (os_release) |buf| allocator.free(buf);
 
     const env = IssueEnv{
@@ -179,19 +179,19 @@ fn findOsReleaseValue(data: []const u8, key: []const u8) ?[]const u8 {
     return null;
 }
 
-fn readOsRelease(allocator: std.mem.Allocator) !?[]u8 {
-    if (try readFileAlloc(allocator, "/etc/os-release", 64 * 1024)) |buf| return buf;
-    return try readFileAlloc(allocator, "/usr/lib/os-release", 64 * 1024);
+fn readOsRelease(allocator: std.mem.Allocator, io: std.Io) !?[]u8 {
+    if (try readFileAlloc(allocator, io, "/etc/os-release", 64 * 1024)) |buf| return buf;
+    return try readFileAlloc(allocator, io, "/usr/lib/os-release", 64 * 1024);
 }
 
-fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8, max_bytes: usize) !?[]u8 {
-    const file = std.fs.openFileAbsolute(path, .{}) catch |err| switch (err) {
+fn readFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8, max_bytes: usize) !?[]u8 {
+    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch |err| switch (err) {
         error.FileNotFound => return null,
         else => return err,
     };
-    defer file.close();
+    defer file.close(io);
     var reader_buf: [4096]u8 = undefined;
-    var reader = file.reader(&reader_buf);
+    var reader = file.reader(io, &reader_buf);
 
     var out = std.ArrayList(u8).empty;
     errdefer out.deinit(allocator);

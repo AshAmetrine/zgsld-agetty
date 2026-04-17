@@ -87,11 +87,11 @@ fn getVersionStr(b: *std.Build, version: std.SemanticVersion) ![]const u8 {
         "--match",
         "*.*.*",
         "--tags",
-    }, &status, .Ignore) catch {
+    }, &status, .ignore) catch {
         return version_str;
     };
     var git_describe = std.mem.trim(u8, git_describe_raw, " \n\r");
-    git_describe = std.mem.trimLeft(u8, git_describe, "v");
+    git_describe = std.mem.trimStart(u8, git_describe, "v");
 
     switch (std.mem.count(u8, git_describe, "-")) {
         0 => {
@@ -104,7 +104,7 @@ fn getVersionStr(b: *std.Build, version: std.SemanticVersion) ![]const u8 {
         2 => {
             // Untagged development build (e.g. 0.10.0-dev.2025+ecf0050a9).
             var it = std.mem.splitScalar(u8, git_describe, '-');
-            const tagged_ancestor = std.mem.trimLeft(u8, it.first(), "v");
+            const tagged_ancestor = std.mem.trimStart(u8, it.first(), "v");
             const commit_height = it.next().?;
             const commit_id = it.next().?;
 
